@@ -16,9 +16,11 @@ import Vega.SampleData.Iris as Iris
 
 
 mark =
+  -- range should be Width by default, or something
   Point
-    { x = { scale = Linear, extract = .sepalWidth }
-    , y = { scale = Linear, extract = .petalWidth }
+    { x = { scale = Linear, domain = .sepalWidth, range = Width }
+    , y = { scale = Linear, domain = .petalWidth, range = Height }
+    , radius = { scale = Linear, domain = .petalLength, range = ExplicitRange (1, 10) }
     }
 
 

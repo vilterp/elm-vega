@@ -16,7 +16,15 @@ type Mark r
   = Point
       { x : ScaledVal r
       , y : ScaledVal r
+      , radius : ScaledVal r
       }
+
+
+type alias ComputedPoint =
+  { x : Float
+  , y : Float
+  , radius : Float
+  }
 
 
 type Scale
@@ -30,30 +38,52 @@ type alias ScaleWithData =
 
 
 doScale : Scale
-      -> Float
+      -> Range
+      -> Geom.Dims
       -> List Float
-      -> { interval : (Float, Float), values : List Float }
-doScale scale targetLength data =
+      -> { bounds : (Float, Float), values : List Float }
+doScale scale range dims data =
   let
-    (dataMin, dataMax) =
+    worldSpaceBounds =
       minMax data
       |> Maybe.withDefault (0, 0)
+
+    margin =
+      30
+
+    viewspaceBounds =
+      case range of
+        ExplicitRange bounds ->
+          bounds
+
+        Width ->
+          (margin, dims.width - margin)
+
+        Height ->
+          (margin, dims.height - margin)
 
     interpolate =
       case scale of
         Linear ->
-          Geom.lerp (0, targetLength) (dataMin, dataMax)
+          Geom.lerp viewspaceBounds worldSpaceBounds
   in
     { values = data |> List.map interpolate
-    , interval = (dataMin, dataMax)
+    , bounds = worldSpaceBounds
     }
 
 
 -- TODO: generalize past Float
 type alias ScaledVal r =
-  { extract : r -> Float
+  { domain : r -> Float
   , scale : Scale
+  , range : Range
   }
+
+
+type Range
+  = ExplicitRange (Float, Float)
+  | Width
+  | Height
 
 
 render : Mark r -> Geom.Dims -> List r -> Diagram t a
@@ -63,31 +93,36 @@ render mark dims data =
       let
         xData =
           data
-          |> List.map attrs.x.extract
-          |> doScale attrs.x.scale (dims.width - 30)
+          |> List.map attrs.x.domain
+          |> doScale attrs.x.scale attrs.x.range dims
 
         yData =
           data
-          |> List.map attrs.y.extract
-          |> doScale attrs.y.scale (dims.height - 30)
+          |> List.map attrs.y.domain
+          |> doScale attrs.y.scale attrs.y.range dims
 
-        xys =
-          List.map2 (,) xData.values yData.values
+        radiusData =
+          data
+          |> List.map attrs.radius.domain
+          |> doScale attrs.radius.scale attrs.radius.range dims
+
+        pointData =
+          List.map3 ComputedPoint xData.values yData.values radiusData.values
 
         fillStroke =
           Color.blue
           |> FillStroke.Solid
           |> FillStroke.justFill
 
-        makePoint coords =
-          Diagrams.circle 5 fillStroke
-          |> Diagrams.move coords
+        makePoint point =
+          Diagrams.circle point.radius fillStroke
+          |> Diagrams.move (point.x, point.y)
 
         xAxis =
-          renderAxis attrs.x.scale xData.interval dims.width
+          renderAxis attrs.x.scale xData.bounds dims.width
 
         points = 
-          xys
+          pointData
           |> List.map makePoint
           |> Diagrams.group
       in
