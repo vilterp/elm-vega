@@ -1,7 +1,7 @@
 module Vega exposing (..)
 -- where
 
-import Color
+import Color exposing (Color)
 import Collage
 import Text
 
@@ -11,73 +11,105 @@ import Diagrams.Geom as Geom
 import Diagrams.Align as Align exposing (above)
 import Diagrams.FillStroke as FillStroke
 
+import Util
 
-type Mark r
+
+type Mark record item
   = Point
-      { x : ScaledVal r
-      , y : ScaledVal r
-      , radius : ScaledVal r
+      { x : FloatVal record
+      , y : FloatVal record
+      , radius : FloatVal record
+      , color : ColorVal record item
       }
+
+
+type alias FloatVal record =
+  { extract : record -> Float
+  , map : FloatMap
+  }
+
+
+constantFloat : Float -> FloatVal record
+constantFloat val =
+  { extract = always val
+  , map = constantFloatMap
+  }
+
+
+type ColorVal record item
+  = ConstantColor Color
+  | ColorMap
+      { extract : record -> item
+      , map : ColorMap
+      }
+
+
+constantColor : Color -> ColorVal r i
+constantColor color =
+  ConstantColor color
+
+
+type ColorMap
+  = ColorRamp ColorRamp
+  | ColorPalette (List Color)
 
 
 type alias ComputedPoint =
   { x : Float
   , y : Float
   , radius : Float
+  , color : Color
   }
 
 
-type Scale
-  = Linear
+{-| first arg is world-space min & max -}
+type alias ColorRamp =
+  (Float, Float) -> Float -> Color
 
 
-type alias ScaleWithData =
-  { interval : (Float, Float)
-  , scale : Scale
-  }
+{-| first arg is world-space min & max -}
+type alias FloatMap =
+  (Float, Float) -> Geom.Dims -> Float -> Float
 
 
-doScale : Scale
-      -> Range
-      -> Geom.Dims
-      -> List Float
-      -> { bounds : (Float, Float), values : List Float }
-doScale scale range dims data =
-  let
-    worldSpaceBounds =
-      minMax data
-      |> Maybe.withDefault (0, 0)
-
-    margin =
-      30
-
-    viewspaceBounds =
-      case range of
-        ExplicitRange bounds ->
-          bounds
-
-        Width ->
-          (margin, dims.width - margin)
-
-        Height ->
-          (margin, dims.height - margin)
-
-    interpolate =
-      case scale of
-        Linear ->
-          Geom.lerp viewspaceBounds worldSpaceBounds
-  in
-    { values = data |> List.map interpolate
-    , bounds = worldSpaceBounds
-    }
+type alias OrdinalMap a =
+  List a -> a -> Float
 
 
--- TODO: generalize past Float
-type alias ScaledVal r =
-  { domain : r -> Float
-  , scale : Scale
-  , range : Range
-  }
+constantFloatMap : FloatMap
+constantFloatMap _ _ val =
+  val
+
+
+-- TODO: allow peeps to pass this in
+margin =
+  30
+
+
+linear : Range -> FloatMap
+linear range =
+  case range of
+    ExplicitRange outInterval ->
+      \inInterval dims val ->
+        Geom.lerp outInterval inInterval val
+
+    Width ->
+      \inInterval dims val ->
+        Geom.lerp (margin, dims.width - margin) inInterval val
+
+    Height ->
+      \inInterval dims val ->
+        Geom.lerp (margin, dims.height - margin) inInterval val
+
+
+colorRamp : Color -> Color -> ColorMap
+colorRamp fromColor toColor =
+  Debug.crash "TODO"
+
+
+ordinalMap : Range -> OrdinalMap a
+ordinalMap range =
+  Debug.crash "TODO"
 
 
 type Range
@@ -86,50 +118,111 @@ type Range
   | Height
 
 
-render : Mark r -> Geom.Dims -> List r -> Diagram t a
+getAllFloatVals : FloatVal record
+               -> Geom.Dims
+               -> List record
+               -> { values : List Float, interval : (Float, Float) }
+getAllFloatVals val dims data =
+  let
+    floatVals =
+      data |> List.map val.extract
+
+    worldSpaceInterval =
+      minMax floatVals |> Maybe.withDefault (0, 0)
+  in
+    { values = floatVals |> List.map (val.map worldSpaceInterval dims)
+    , interval = worldSpaceInterval
+    }
+
+
+getColorMap : ColorMap -> List item -> item -> Color
+getColorMap map items item =
+  case map of
+    ColorRamp ramp ->
+      Debug.crash "TODO"
+
+    ColorPalette colors ->
+      let
+        itemIdx =
+          Util.listFind item items |> Maybe.withDefault 0
+
+        moddedIdx =
+          itemIdx % (List.length colors)
+
+        d = 
+          Debug.log "itemIdx" (item, itemIdx, moddedIdx, colors)
+      in
+        colors
+        |> Util.listGet moddedIdx
+        |> Maybe.withDefault Color.blue
+
+
+getAllColorVals : ColorVal record item -> List record -> List Color
+getAllColorVals val data =
+  case val of
+    ConstantColor color ->
+      data |> List.map (always color)
+
+    ColorMap mapAttrs ->
+      let
+        items =
+          data |> List.map mapAttrs.extract
+
+        uniqueItems =
+          items |> Util.listUnique
+      in
+        items |> List.map (getColorMap mapAttrs.map uniqueItems)
+
+
+render : Mark r i -> Geom.Dims -> List r -> Diagram t a
 render mark dims data =
   case mark of
     Point attrs ->
       let
         xData =
-          data
-          |> List.map attrs.x.domain
-          |> doScale attrs.x.scale attrs.x.range dims
+          data |> getAllFloatVals attrs.x dims
 
         yData =
-          data
-          |> List.map attrs.y.domain
-          |> doScale attrs.y.scale attrs.y.range dims
+          data |> getAllFloatVals attrs.y dims
 
         radiusData =
-          data
-          |> List.map attrs.radius.domain
-          |> doScale attrs.radius.scale attrs.radius.range dims
+          data |> getAllFloatVals attrs.radius dims
+
+        colorData =
+          data |> getAllColorVals attrs.color
 
         pointData =
-          List.map3 ComputedPoint xData.values yData.values radiusData.values
+          List.map4
+            ComputedPoint
+            xData.values
+            yData.values
+            radiusData.values
+            colorData
 
-        fillStroke =
-          Color.blue
+        fillStroke color =
+          color
           |> FillStroke.Solid
           |> FillStroke.justFill
 
         makePoint point =
-          Diagrams.circle point.radius fillStroke
+          Diagrams.circle point.radius (fillStroke point.color)
           |> Diagrams.move (point.x, point.y)
 
-        xAxis =
-          renderAxis attrs.x.scale xData.bounds dims.width
+        --xAxis =
+        --  renderAxis attrs.x.scale xData.bounds dims.width
 
         points = 
           pointData
           |> List.map makePoint
           |> Diagrams.group
       in
-        (points |> Align.alignCenter) `above` (xAxis |> Align.alignCenter)
-        |> Align.alignCenter
+        points |> Align.alignCenter
+        --(points |> Align.alignCenter) `above` (xAxis |> Align.alignCenter)
+        --|> Align.alignCenter
 
 
+
+{-
 renderAxis : Scale -> (Float, Float) -> Float -> Diagram t a
 renderAxis scale (theMin, theMax) targetLength =
   let
@@ -178,6 +271,7 @@ renderAxis scale (theMin, theMax) targetLength =
       Diagrams.hline targetLength Collage.defaultLine
   in
     line `above` ticks
+-}
 
 -- utils
 

@@ -4,6 +4,7 @@ module Test exposing (..)
 import Collage
 import Element
 import Html exposing (Html)
+import Color
 import Html.App as App
 
 import Vega exposing (..)
@@ -18,9 +19,10 @@ import Vega.SampleData.Iris as Iris
 mark =
   -- range should be Width by default, or something
   Point
-    { x = { scale = Linear, domain = .sepalWidth, range = Width }
-    , y = { scale = Linear, domain = .petalWidth, range = Height }
-    , radius = { scale = Linear, domain = .petalLength, range = ExplicitRange (1, 10) }
+    { x = { extract = .sepalWidth, map = linear Width }
+    , y = { extract = .petalWidth, map = linear Height }
+    , radius = { extract = .petalLength, map = linear (ExplicitRange (1, 10)) }
+    , color = ColorMap { extract = .species, map = ColorPalette [Color.blue, Color.orange] }
     }
 
 
