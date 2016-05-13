@@ -23,7 +23,16 @@ type Scale
   = Linear
 
 
-doScale : Scale -> Float -> List Float -> List Float
+type alias ScaleWithData =
+  { interval : (Float, Float)
+  , scale : Scale
+  }
+
+
+doScale : Scale
+      -> Float
+      -> List Float
+      -> { interval : (Float, Float), values : List Float }
 doScale scale targetLength data =
   let
     (dataMin, dataMax) =
@@ -35,7 +44,9 @@ doScale scale targetLength data =
         Linear ->
           Geom.lerp (0, targetLength) (dataMin, dataMax)
   in
-    data |> List.map interpolate
+    { values = data |> List.map interpolate
+    , interval = (dataMin, dataMax)
+    }
 
 
 -- TODO: generalize past Float
@@ -61,7 +72,7 @@ render mark dims data =
           |> doScale attrs.y.scale (dims.height - 30)
 
         xys =
-          List.map2 (,) xData yData
+          List.map2 (,) xData.values yData.values
 
         fillStroke =
           Color.blue
@@ -73,7 +84,7 @@ render mark dims data =
           |> Diagrams.move coords
 
         xAxis =
-          renderAxis attrs.x.scale (minMax (List.map attrs.x.extract data) |> Maybe.withDefault (0, 0)) dims.width
+          renderAxis attrs.x.scale xData.interval dims.width
 
         points = 
           xys

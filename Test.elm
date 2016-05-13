@@ -12,26 +12,17 @@ import Diagrams.Geom as Geom
 import Diagrams.Type exposing (..)
 import Diagrams.Debug
 
+import Vega.SampleData.Iris as Iris
+
 
 mark =
   Point
-    { x = { scale = Linear, extract = .temperature }
-    , y = { scale = Linear, extract = .humidity }
+    { x = { scale = Linear, extract = .sepalWidth }
+    , y = { scale = Linear, extract = .petalWidth }
     }
 
 
-data =
-  let
-    temperature =
-      [50..100]
-
-    humidity =
-      [40..90]
-  in
-    List.map2 (,) temperature humidity
-    |> List.map (\(t, h) -> { temperature = t, humidity = h })
-
-
+-- TODO: move this into diagrams lib
 renderDia : Geom.Dims -> Diagram t a -> Html x
 renderDia dims dia =
   dia
@@ -51,7 +42,7 @@ dims =
 
 view : () -> Html x
 view model =
-  render mark dims data
+  render mark dims Iris.table
   |> renderDia dims
 
 
