@@ -1,0 +1,20 @@
+{
+    "version": "1.0.0",
+    "summary": "compositional data visualization, inspired by https://vega.github.io/",
+    "repository": "https://github.com/vilterp/elm-vega.git",
+    "license": "BSD3",
+    "source-directories": [
+        "."
+    ],
+    "exposed-modules": [
+        "Vega"
+    ],
+    "dependencies": {
+        "elm-lang/core": "4.0.0 <= v < 5.0.0",
+        "elm-lang/html": "1.0.0 <= v < 2.0.0",
+        "elm-lang/window": "1.0.0 <= v < 2.0.0",
+        "evancz/elm-graphics": "1.0.0 <= v < 2.0.0",
+        "vilterp/elm-diagrams": "7.0.0 <= v < 8.0.0"
+    },
+    "elm-version": "0.17.0 <= v < 0.18.0"
+}
