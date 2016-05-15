@@ -13,7 +13,13 @@ import Diagrams.FillStroke as FillStroke
 
 import Util
 
+{-
+Really what we're doing here is building a function from record
+to diagram that's mapped over the data to give us all our marks.
 
+The function also has to give us the world space coordinate it extracts,
+so we can establish the range.
+-}
 type Mark record
   = Point
       { x : FloatVal record
@@ -35,9 +41,29 @@ type Dimension r
   | ConstantLength Float
 
 
-{- welp, extract can't always be record to float. do I really need this separation
-between the "value", which has its extractor, and the map?  -}
-type FloatVal record
+{-
+Okay, so at first you say, "this is my extractor, it's this function to this
+range". Then it's like "cool, I'm gonna run that over the data and get the
+world space interval" (and the values, cuz why not). And then you're like
+"stick around, cuz I need u for this constant".
+
+Also, then you can render the axis from that result thing.
+-}
+
+
+
+type alias FloatVal record =
+  { scale : FloatScale record
+  , source : FloatValSource
+  }
+
+
+type FloatValSource
+  = FromData
+  | ConstantFS Float
+
+
+type FloatScale record
   = QuantitativeFV
       { extract : record -> Float
       , map : FloatMap
@@ -48,22 +74,13 @@ type FloatVal record
       }
 
 
-constantFloat : Float -> FloatVal record
-constantFloat val =
-  QuantitativeFV
-    { extract = always val
-    , map = constantFloatMap
-    }
-
-
 -- TODO: square this terminology up w/ vega...
 -- scales, not maps...
-scaledConstantFloat : FloatMap -> Float -> FloatVal record
-scaledConstantFloat map val =
-  QuantitativeFV
-    { extract = always val
-    , map = map
-    }
+scaledConstantFloat : FloatScale record -> Float -> FloatVal record
+scaledConstantFloat scale val =
+  { scale = scale
+  , source = ConstantFS val
+  }
 
 
 type ColorVal record
@@ -183,12 +200,13 @@ type Range
 
 
 -- TODO: change name of this to compute or something
+-- TODO: dry up the source case expression
 getAllFloatVals : FloatVal record
               -> Geom.Dims
               -> List record
               -> { values : List Float, interval : WorldSpaceInterval }
 getAllFloatVals val dims data =
-  case val of
+  case val.scale of
     QuantitativeFV attrs ->
       let
         floatVals =
@@ -196,8 +214,17 @@ getAllFloatVals val dims data =
 
         worldSpaceInterval =
           minMax floatVals |> Maybe.withDefault (0, 0)
+
+        toFeed =
+          case val.source of
+            ConstantFS constant ->
+              -- TODO: less dumb way of doing this
+              floatVals |> List.map (always constant)
+
+            FromData ->
+              floatVals
       in
-        { values = floatVals |> List.map (attrs.map worldSpaceInterval dims)
+        { values = toFeed |> List.map (attrs.map worldSpaceInterval dims)
         , interval = QuantitativeInterval worldSpaceInterval
         }
 
@@ -208,6 +235,15 @@ getAllFloatVals val dims data =
 
         uniqueItems =
           column |> Util.listUnique
+
+        toFeed =
+          case val.source of
+            ConstantFS constant ->
+              -- TODO: I guess you should be able to pass in a string though?
+              Debug.crash "can't give a float constant to an ordinal scale"
+
+            FromData ->
+              column
       in
         { values = column |> List.map (attrs.map uniqueItems dims)
         , interval = OrdinalInterval uniqueItems
@@ -215,8 +251,26 @@ getAllFloatVals val dims data =
 
 
 {-
-Okay so how is this dimension shit gonna work? You have to compute the x
-first and then the width...
+ok, so if the constant floatval always extracts the same value,
+how is it gonna lerp? it can't. it needs to know what the interval
+of the val that actuall came from a column was. that's why we need to
+separate scales and values.
+
+shit.
+
+okay, so what is a scale? vs a val? you want to have an extractor and say
+"this is linear, mapped to this range". you'd might as well run that over the
+data up front.
+
+So when you just say
+  x = { extract = .something, map = linear Height }
+how does that work? like, when does the scale compute itself?
+
+we could have a list of scales that have already been computed, and check if we
+already have this one... within the render function I guess...
+
+or just say fuck it and compute it again... as long as you have the same extractor
+you should be ok...
 -}
 
 

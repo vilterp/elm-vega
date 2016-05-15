@@ -19,13 +19,22 @@ import Vega.SampleData.Iris as Iris
 points =
   -- range should be Width by default, or something
   Point
-    { x = QuantitativeFV { extract = .sepalWidth, map = linear Width }
-    , y = QuantitativeFV { extract = .petalWidth, map = linear Height }
+    { x =
+        { scale = QuantitativeFV { extract = .sepalWidth, map = linear Width }
+        , source = FromData
+        }
+    , y =
+        { scale = QuantitativeFV { extract = .petalWidth, map = linear Height }
+        , source = FromData
+        }
     , radius =
-        QuantitativeFV
-          { extract = .petalLength
-          , map = linear (ExplicitRange (1, 10))
-          }
+        { scale =
+            QuantitativeFV
+              { extract = .petalLength
+              , map = linear (ExplicitRange (1, 10))
+              }
+        , source = FromData
+        }
     , color =
         ColorPalette
           { extract = .species
@@ -37,13 +46,16 @@ points =
 rects =
   let
     yScale =
-      linear Height
+      QuantitativeFV { extract = .avg, map = linear Height }
   in
     Rect
-      { x = OrdinalFV { extract = .species, map = ordinalMap Width }
-      , y = QuantitativeFV { extract = .avg, map = yScale }
-      , width = ConstantLength 30
-      , height = ToVal (scaledConstantFloat (linear Height) 0 )
+      { x =
+          { scale = OrdinalFV { extract = .species, map = ordinalMap Width }
+          , source = FromData
+          }
+      , y = { scale = yScale, source = FromData }
+      , width = ConstantLength 30 -- TODO: make this dependent on dims!!
+      , height = ToVal { scale = yScale, source = ConstantFS 0 }
       --, height = ConstantLength 10
       , color = constantColor Color.blue
       }
