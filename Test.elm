@@ -56,14 +56,13 @@ rects =
       , y = { scale = yScale, source = FromData }
       , width = ConstantLength 30 -- TODO: make this dependent on dims!!
       , height = ToVal { scale = yScale, source = ConstantFS 0 }
-      --, height = ConstantLength 10
       , color = constantColor Color.blue
       }
 
 
 diagram =
-  render rects dims (Iris.avgSpeciesAttr .sepalWidth)
-  --render points dims Iris.table
+  --render rects dims (Iris.avgSpeciesAttr .sepalWidth)
+  render points dims Iris.table
 
 
 dims =

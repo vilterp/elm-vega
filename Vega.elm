@@ -41,17 +41,6 @@ type Dimension r
   | ConstantLength Float
 
 
-{-
-Okay, so at first you say, "this is my extractor, it's this function to this
-range". Then it's like "cool, I'm gonna run that over the data and get the
-world space interval" (and the values, cuz why not). And then you're like
-"stick around, cuz I need u for this constant".
-
-Also, then you can render the axis from that result thing.
--}
-
-
-
 type alias FloatVal record =
   { scale : FloatScale record
   , source : FloatValSource
@@ -123,9 +112,6 @@ type alias ColorRamp =
 
 
 {-| first arg is world-space min & max -}
--- TODO: fuck it, you have to return a string for ordinal items.
--- we can't have type vars leaking everywhere. it has to be stringified
--- sooner or later before it's rendered; I guess this is sooner.
 type alias FloatMap =
   (Float, Float) -> Geom.Dims -> Float -> Float
 
@@ -248,30 +234,6 @@ getAllFloatVals val dims data =
         { values = column |> List.map (attrs.map uniqueItems dims)
         , interval = OrdinalInterval uniqueItems
         }
-
-
-{-
-ok, so if the constant floatval always extracts the same value,
-how is it gonna lerp? it can't. it needs to know what the interval
-of the val that actuall came from a column was. that's why we need to
-separate scales and values.
-
-shit.
-
-okay, so what is a scale? vs a val? you want to have an extractor and say
-"this is linear, mapped to this range". you'd might as well run that over the
-data up front.
-
-So when you just say
-  x = { extract = .something, map = linear Height }
-how does that work? like, when does the scale compute itself?
-
-we could have a list of scales that have already been computed, and check if we
-already have this one... within the render function I guess...
-
-or just say fuck it and compute it again... as long as you have the same extractor
-you should be ok...
--}
 
 
 getAllForDimension : Dimension record
