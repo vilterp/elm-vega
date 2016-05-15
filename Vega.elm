@@ -73,7 +73,7 @@ type alias FloatMap =
 
 
 type alias OrdinalMap a =
-  List a -> a -> Float
+  List a -> Geom.Dims -> a -> Float
 
 
 constantFloatMap : FloatMap
@@ -109,7 +109,23 @@ colorRamp fromColor toColor =
 
 ordinalMap : Range -> OrdinalMap a
 ordinalMap range =
-  Debug.crash "TODO"
+  \items dims item ->
+    let
+      viewspaceInterval =
+        case range of
+          ExplicitRange interval ->
+            interval
+
+          Width ->
+            (margin, dims.width - margin)
+
+          Height ->
+            (margin, dims.height - margin)
+
+      itemIdx =
+        Util.listFind item items |> Maybe.withDefault 0
+    in
+      Geom.lerp viewspaceInterval (0, toFloat (List.length items)) (toFloat itemIdx)
 
 
 type Range
@@ -221,25 +237,31 @@ render mark dims data =
         --|> Align.alignCenter
 
 
+{-
+I have
+  world space => view space
+
+I want
+  tick space => world space
+
+...fuck.
+-}
+
+-- TODO: legends for sizes
 
 {-
-renderAxis : Scale -> (Float, Float) -> Float -> Diagram t a
-renderAxis scale (theMin, theMax) targetLength =
+renderAxis : FloatMap -> (Float, Float) -> Geom.Dims -> Diagram t a
+renderAxis floatMap worldSpaceInterval dims =
   let
     numTicks =
       10
-
-    tickToView =
-      case scale of
-        Linear ->
-          Geom.lerp (0, targetLength) (1, numTicks)
 
     tickIndices =
       [1..numTicks]
 
     tickPositions =
       tickIndices
-      |> List.map tickToView
+      |> List.map floatMap
 
     tickHeight =
       5 -- TODO configurable
@@ -248,9 +270,7 @@ renderAxis scale (theMin, theMax) targetLength =
       Diagrams.vline 5 Collage.defaultLine -- TODO configurable
 
     tickToWorld =
-      case scale of
-        Linear ->
-          Geom.lerp (theMin, theMax) (1, numTicks)
+      floatMap (0, numTicks) { width = numTicks, height = numTicks }
 
     tickLabel idx =
       tickToWorld idx
@@ -268,7 +288,7 @@ renderAxis scale (theMin, theMax) targetLength =
       |> Align.alignCenter
     
     line =
-      Diagrams.hline targetLength Collage.defaultLine
+      Diagrams.hline viewSpaceLength Collage.defaultLine
   in
     line `above` ticks
 -}
