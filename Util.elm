@@ -1,7 +1,7 @@
 module Util exposing (..)
 -- where
 
-import Set
+import Dict exposing (Dict)
 
 
 listFind : a -> List a -> Maybe Int
@@ -51,3 +51,27 @@ listUnique items =
               go (x::soFar) xs
   in
     go [] items
+
+
+groupBy : (record -> comparable) -> List record -> Dict comparable (List record)
+groupBy groupKey data =
+  List.foldl
+    (\record acc ->
+      let
+        key =
+          groupKey record
+
+        upFunc maybeList =
+          maybeList
+          |> Maybe.map (\list -> record :: list)
+          |> Maybe.withDefault [record]
+          |> Just
+      in
+        Dict.update key upFunc acc)
+    Dict.empty
+    data
+
+
+average : List Float -> Float
+average numbers =
+  (numbers |> List.sum) / (List.length numbers |> toFloat)

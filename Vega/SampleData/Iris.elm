@@ -1,5 +1,8 @@
-module Vega.SampleData.Iris exposing (table)
+module Vega.SampleData.Iris exposing (..)
   -- where 
+
+import Util
+import Dict
 
 {-| 150 * 5 dataset from the R Datasets package on iris flowers. 
 https://stat.ethz.ch/R-manual/R-patched/library/datasets/html/iris.html
@@ -33,3 +36,11 @@ type alias Flower =
 
 table =
   List.map5 Flower sepalLength sepalWidth petalLength petalWidth species
+
+
+avgSpeciesAttr attr =
+  table
+  |> Util.groupBy .species
+  |> Dict.map (\species list -> list |> List.map attr |> Util.average)
+  |> Dict.toList
+  |> List.map (\(species, avg) -> { species = species, avg = avg })

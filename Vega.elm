@@ -14,44 +14,73 @@ import Diagrams.FillStroke as FillStroke
 import Util
 
 
-type Mark record item
+type Mark record
   = Point
       { x : FloatVal record
       , y : FloatVal record
       , radius : FloatVal record
-      , color : ColorVal record item
+      , color : ColorVal record
+      }
+  | Rect
+      { x : FloatVal record
+      , y : FloatVal record
+      , width : Dimension record
+      , height : Dimension record
+      , color : ColorVal record
       }
 
 
-type alias FloatVal record =
-  { extract : record -> Float
-  , map : FloatMap
-  }
+type Dimension r
+  = ToVal (FloatVal r)
+  | ConstantLength Float
+
+
+{- welp, extract can't always be record to float. do I really need this separation
+between the "value", which has its extractor, and the map?  -}
+type FloatVal record
+  = QuantitativeFV
+      { extract : record -> Float
+      , map : FloatMap
+      }
+  | OrdinalFV
+      { extract : record -> String
+      , map : OrdinalMap
+      }
 
 
 constantFloat : Float -> FloatVal record
 constantFloat val =
-  { extract = always val
-  , map = constantFloatMap
-  }
+  QuantitativeFV
+    { extract = always val
+    , map = constantFloatMap
+    }
 
 
-type ColorVal record item
+-- TODO: square this terminology up w/ vega...
+-- scales, not maps...
+scaledConstantFloat : FloatMap -> Float -> FloatVal record
+scaledConstantFloat map val =
+  QuantitativeFV
+    { extract = always val
+    , map = map
+    }
+
+
+type ColorVal record
   = ConstantColor Color
-  | ColorMap
-      { extract : record -> item
-      , map : ColorMap
+  | ColorRamp
+      { extract : record -> Float
+      , map : ColorRamp
+      }
+  | ColorPalette
+      { extract : record -> String
+      , colors : List Color -- TODO: allow you to specify key-color pairs
       }
 
 
-constantColor : Color -> ColorVal r i
+constantColor : Color -> ColorVal r
 constantColor color =
   ConstantColor color
-
-
-type ColorMap
-  = ColorRamp ColorRamp
-  | ColorPalette (List Color)
 
 
 type alias ComputedPoint =
@@ -62,18 +91,30 @@ type alias ComputedPoint =
   }
 
 
+type alias ComputedRect =
+  { x : Float
+  , y : Float
+  , width : Float
+  , height : Float
+  , color : Color
+  }
+
+
 {-| first arg is world-space min & max -}
 type alias ColorRamp =
   (Float, Float) -> Float -> Color
 
 
 {-| first arg is world-space min & max -}
+-- TODO: fuck it, you have to return a string for ordinal items.
+-- we can't have type vars leaking everywhere. it has to be stringified
+-- sooner or later before it's rendered; I guess this is sooner.
 type alias FloatMap =
   (Float, Float) -> Geom.Dims -> Float -> Float
 
 
-type alias OrdinalMap a =
-  List a -> Geom.Dims -> a -> Float
+type alias OrdinalMap =
+  List String -> Geom.Dims -> String -> Float
 
 
 constantFloatMap : FloatMap
@@ -99,15 +140,17 @@ linear range =
 
     Height ->
       \inInterval dims val ->
-        Geom.lerp (margin, dims.height - margin) inInterval val
+        let
+          d = 
+            Debug.log "height, interval, val" (dims.height, inInterval, val)
+
+          res =
+            Geom.lerp (margin, dims.height - margin) inInterval val
+        in
+          res
 
 
-colorRamp : Color -> Color -> ColorMap
-colorRamp fromColor toColor =
-  Debug.crash "TODO"
-
-
-ordinalMap : Range -> OrdinalMap a
+ordinalMap : Range -> OrdinalMap
 ordinalMap range =
   \items dims item ->
     let
@@ -128,69 +171,116 @@ ordinalMap range =
       Geom.lerp viewspaceInterval (0, toFloat (List.length items)) (toFloat itemIdx)
 
 
+colorRamp : Color -> Color -> ColorRamp
+colorRamp fromColor toColor =
+  Debug.crash "TODO"
+
+
 type Range
   = ExplicitRange (Float, Float)
   | Width
   | Height
 
 
+-- TODO: change name of this to compute or something
 getAllFloatVals : FloatVal record
-               -> Geom.Dims
-               -> List record
-               -> { values : List Float, interval : (Float, Float) }
+              -> Geom.Dims
+              -> List record
+              -> { values : List Float, interval : WorldSpaceInterval }
 getAllFloatVals val dims data =
-  let
-    floatVals =
-      data |> List.map val.extract
-
-    worldSpaceInterval =
-      minMax floatVals |> Maybe.withDefault (0, 0)
-  in
-    { values = floatVals |> List.map (val.map worldSpaceInterval dims)
-    , interval = worldSpaceInterval
-    }
-
-
-getColorMap : ColorMap -> List item -> item -> Color
-getColorMap map items item =
-  case map of
-    ColorRamp ramp ->
-      Debug.crash "TODO"
-
-    ColorPalette colors ->
+  case val of
+    QuantitativeFV attrs ->
       let
-        itemIdx =
-          Util.listFind item items |> Maybe.withDefault 0
+        floatVals =
+          data |> List.map attrs.extract
 
-        moddedIdx =
-          itemIdx % (List.length colors)
-
-        d = 
-          Debug.log "itemIdx" (item, itemIdx, moddedIdx, colors)
+        worldSpaceInterval =
+          minMax floatVals |> Maybe.withDefault (0, 0)
       in
-        colors
-        |> Util.listGet moddedIdx
-        |> Maybe.withDefault Color.blue
+        { values = floatVals |> List.map (attrs.map worldSpaceInterval dims)
+        , interval = QuantitativeInterval worldSpaceInterval
+        }
+
+    OrdinalFV attrs ->
+      let
+        column =
+          data |> List.map attrs.extract
+
+        uniqueItems =
+          column |> Util.listUnique
+      in
+        { values = column |> List.map (attrs.map uniqueItems dims)
+        , interval = OrdinalInterval uniqueItems
+        }
 
 
-getAllColorVals : ColorVal record item -> List record -> List Color
+{-
+Okay so how is this dimension shit gonna work? You have to compute the x
+first and then the width...
+-}
+
+
+getAllForDimension : Dimension record
+                  -> Geom.Dims
+                  -> WorldSpaceInterval
+                  -> List (Float, record)
+                  -> { values : List Float, interval : WorldSpaceInterval }
+getAllForDimension dimension dims worldSpaceInterval data =
+  case dimension of
+    ToVal floatVal ->
+      { values =
+          getAllFloatVals floatVal dims (List.map snd data)
+          |> .values
+          |> List.map2 (\(relatedVal, _) toVal -> toVal - relatedVal) data
+      , interval = worldSpaceInterval
+      }
+
+    ConstantLength length ->
+      Debug.log "ConstantLength"
+        { values = data |> List.map (always length)
+        , interval = worldSpaceInterval
+        }
+
+
+type WorldSpaceInterval
+  = OrdinalInterval (List String)
+  | QuantitativeInterval (Float, Float)
+
+
+getAllColorVals : ColorVal record -> List record -> List Color
 getAllColorVals val data =
   case val of
     ConstantColor color ->
       data |> List.map (always color)
 
-    ColorMap mapAttrs ->
+    ColorRamp attrs ->
+      Debug.crash "TODO"
+
+    ColorPalette attrs ->
       let
         items =
-          data |> List.map mapAttrs.extract
+          data |> List.map attrs.extract
 
         uniqueItems =
           items |> Util.listUnique
+
+        colorForItem item =
+          let
+            itemIdx =
+              Util.listFind item uniqueItems |> Maybe.withDefault 0
+
+            moddedIdx =
+              itemIdx % (List.length attrs.colors)
+          in
+            attrs.colors
+            |> Util.listGet moddedIdx
+            |> Maybe.withDefault Color.blue
       in
-        items |> List.map (getColorMap mapAttrs.map uniqueItems)
+        items |> List.map colorForItem
 
 
-render : Mark r i -> Geom.Dims -> List r -> Diagram t a
+-- TODO: DRY up
+render : Mark r -> Geom.Dims -> List r -> Diagram t a
 render mark dims data =
   case mark of
     Point attrs ->
@@ -232,10 +322,57 @@ render mark dims data =
           |> List.map makePoint
           |> Diagrams.group
       in
-        points |> Align.alignCenter
-        --(points |> Align.alignCenter) `above` (xAxis |> Align.alignCenter)
-        --|> Align.alignCenter
+        pointData
+        |> List.map makePoint
+        |> Diagrams.group
+        |> Align.alignCenter
 
+    Rect attrs ->
+      let
+        xData =
+          data |> getAllFloatVals attrs.x dims
+
+        yData =
+          data |> getAllFloatVals attrs.y dims
+
+        colorData =
+          data |> getAllColorVals attrs.color
+
+        widthData =
+          data
+          |> List.map2 (,) xData.values
+          |> getAllForDimension attrs.width dims xData.interval
+
+        heightData =
+          data
+          |> List.map2 (,) yData.values
+          |> getAllForDimension attrs.height dims yData.interval
+
+        rects =
+          List.map5
+            ComputedRect
+            xData.values
+            yData.values
+            widthData.values
+            heightData.values
+            colorData
+
+        fillStroke color =
+          color
+          |> FillStroke.Solid
+          |> FillStroke.justFill
+
+        makeRect rect =
+          Diagrams.rect rect.width rect.height (fillStroke rect.color)
+          |> Align.alignTop
+          |> Align.alignLeft
+          |> Diagrams.move (rect.x, rect.y)
+      in
+        rects
+        |> Debug.log "rects"
+        |> List.map makeRect
+        |> Diagrams.group
+        |> Align.alignCenter
 
 {-
 I have

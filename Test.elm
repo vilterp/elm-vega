@@ -16,21 +16,42 @@ import Diagrams.Debug
 import Vega.SampleData.Iris as Iris
 
 
-mark =
+points =
   -- range should be Width by default, or something
   Point
-    { x = { extract = .sepalWidth, map = linear Width }
-    , y = { extract = .petalWidth, map = linear Height }
+    { x = QuantitativeFV { extract = .sepalWidth, map = linear Width }
+    , y = QuantitativeFV { extract = .petalWidth, map = linear Height }
     , radius =
-        { extract = .petalLength
-        , map = linear (ExplicitRange (1, 10))
-        }
+        QuantitativeFV
+          { extract = .petalLength
+          , map = linear (ExplicitRange (1, 10))
+          }
     , color =
-        ColorMap
+        ColorPalette
           { extract = .species
-          , map = ColorPalette [Color.blue, Color.orange, Color.green]
+          , colors = [Color.blue, Color.orange, Color.green]
           }
     }
+
+
+rects =
+  let
+    yScale =
+      linear Height
+  in
+    Rect
+      { x = OrdinalFV { extract = .species, map = ordinalMap Width }
+      , y = QuantitativeFV { extract = .avg, map = yScale }
+      , width = ConstantLength 30
+      , height = ToVal (scaledConstantFloat (linear Height) 0 )
+      --, height = ConstantLength 10
+      , color = constantColor Color.blue
+      }
+
+
+diagram =
+  render rects dims (Iris.avgSpeciesAttr .sepalWidth)
+  --render points dims Iris.table
 
 
 dims =
@@ -43,7 +64,7 @@ main =
   App.beginnerProgram
     { model = ()
     , view =
-        render mark dims Iris.table
+        diagram
         |> Diagrams.toHtml dims
         |> always
     , update = \_ _ -> ()
