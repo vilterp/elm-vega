@@ -7,12 +7,13 @@ import Html exposing (Html)
 import Color
 import Html.App as App
 
-import Vega exposing (..)
 import Diagrams.Core as Diagrams
 import Diagrams.Geom as Geom
 import Diagrams.Type exposing (..)
 import Diagrams.Debug
 
+import Vega exposing (..)
+import Vega.Types exposing (..)
 import Vega.SampleData.Iris as Iris
 
 
@@ -76,7 +77,7 @@ main =
     { model = ()
     , view =
         diagram
-        |> Diagrams.toHtml dims
+        |> Diagrams.toHtml { dims | width = dims.width + 100, height = dims.height + 100 }
         |> always
     , update = \_ _ -> ()
     }

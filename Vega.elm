@@ -1,3 +1,4 @@
+-- TODO: maybe rename to Core?
 module Vega exposing (..)
 -- where
 
@@ -8,59 +9,13 @@ import Text
 import Diagrams.Type exposing (Diagram)
 import Diagrams.Core as Diagrams
 import Diagrams.Geom as Geom
-import Diagrams.Align as Align exposing (above)
+import Diagrams.Align as Align exposing (beside, above)
 import Diagrams.FillStroke as FillStroke
+import Diagrams.Debug as DDebug
 
 import Util
-
-{-
-Really what we're doing here is building a function from record
-to diagram that's mapped over the data to give us all our marks.
-
-The function also has to give us the world space coordinate it extracts,
-so we can establish the range.
--}
-type Mark record
-  = Point
-      { x : FloatVal record
-      , y : FloatVal record
-      , radius : FloatVal record
-      , color : ColorVal record
-      }
-  | Rect
-      { x : FloatVal record
-      , y : FloatVal record
-      , width : Dimension record
-      , height : Dimension record
-      , color : ColorVal record
-      }
-
-
-type Dimension r
-  = ToVal (FloatVal r)
-  | ConstantLength Float
-
-
-type alias FloatVal record =
-  { scale : FloatScale record
-  , source : FloatValSource
-  }
-
-
-type FloatValSource
-  = FromData
-  | ConstantFS Float
-
-
-type FloatScale record
-  = QuantitativeFV
-      { extract : record -> Float
-      , map : FloatMap
-      }
-  | OrdinalFV
-      { extract : record -> String
-      , map : OrdinalMap
-      }
+import Vega.Types exposing (..)
+import Vega.Axis as Axis
 
 
 -- TODO: square this terminology up w/ vega...
@@ -72,62 +27,14 @@ scaledConstantFloat scale val =
   }
 
 
-type ColorVal record
-  = ConstantColor Color
-  | ColorRamp
-      { extract : record -> Float
-      , map : ColorRamp
-      }
-  | ColorPalette
-      { extract : record -> String
-      , colors : List Color -- TODO: allow you to specify key-color pairs
-      }
-
-
 constantColor : Color -> ColorVal r
 constantColor color =
   ConstantColor color
 
 
-type alias ComputedPoint =
-  { x : Float
-  , y : Float
-  , radius : Float
-  , color : Color
-  }
-
-
-type alias ComputedRect =
-  { x : Float
-  , y : Float
-  , width : Float
-  , height : Float
-  , color : Color
-  }
-
-
-{-| first arg is world-space min & max -}
-type alias ColorRamp =
-  (Float, Float) -> Float -> Color
-
-
-{-| first arg is world-space min & max -}
-type alias FloatMap =
-  (Float, Float) -> Geom.Dims -> Float -> Float
-
-
-type alias OrdinalMap =
-  List String -> Geom.Dims -> String -> Float
-
-
 constantFloatMap : FloatMap
 constantFloatMap _ _ val =
   val
-
-
--- TODO: allow peeps to pass this in
-margin =
-  30
 
 
 linear : Range -> FloatMap
@@ -139,18 +46,11 @@ linear range =
 
     Width ->
       \inInterval dims val ->
-        Geom.lerp (margin, dims.width - margin) inInterval val
+        Geom.lerp (0, dims.width) inInterval val
 
     Height ->
       \inInterval dims val ->
-        let
-          d = 
-            Debug.log "height, interval, val" (dims.height, inInterval, val)
-
-          res =
-            Geom.lerp (margin, dims.height - margin) inInterval val
-        in
-          res
+        Geom.lerp (0, dims.height) inInterval val
 
 
 ordinalMap : Range -> OrdinalMap
@@ -163,10 +63,10 @@ ordinalMap range =
             interval
 
           Width ->
-            (margin, dims.width - margin)
+            (0, dims.width)
 
           Height ->
-            (margin, dims.height - margin)
+            (0, dims.height)
 
       itemIdx =
         Util.listFind item items |> Maybe.withDefault 0
@@ -177,12 +77,6 @@ ordinalMap range =
 colorRamp : Color -> Color -> ColorRamp
 colorRamp fromColor toColor =
   Debug.crash "TODO"
-
-
-type Range
-  = ExplicitRange (Float, Float)
-  | Width
-  | Height
 
 
 -- TODO: change name of this to compute or something
@@ -258,11 +152,6 @@ getAllForDimension dimension dims worldSpaceInterval data =
         }
 
 
-type WorldSpaceInterval
-  = OrdinalInterval (List String)
-  | QuantitativeInterval (Float, Float)
-
-
 getAllColorVals : ColorVal record -> List record -> List Color
 getAllColorVals val data =
   case val of
@@ -330,18 +219,20 @@ render mark dims data =
           Diagrams.circle point.radius (fillStroke point.color)
           |> Diagrams.move (point.x, point.y)
 
-        --xAxis =
-        --  renderAxis attrs.x.scale xData.bounds dims.width
+        xAxis =
+          Axis.renderQuantitativeAxis Geom.Down dims xData.interval attrs.x.scale
+
+        yAxis =
+          Axis.renderQuantitativeAxis Geom.Left dims yData.interval attrs.y.scale
 
         points = 
           pointData
           |> List.map makePoint
           |> Diagrams.group
+          |> Align.alignCenter -- TODO: reduce use of this... linear in # points
       in
-        pointData
-        |> List.map makePoint
-        |> Diagrams.group
-        |> Align.alignCenter
+        (yAxis `beside` points |> Align.alignRight) `above` (xAxis |> Align.alignRight)
+        |> Align.alignCenter -- I think this traverses all the points again :(
 
     Rect attrs ->
       let
@@ -390,61 +281,6 @@ render mark dims data =
         |> Diagrams.group
         |> Align.alignCenter
 
-{-
-I have
-  world space => view space
-
-I want
-  tick space => world space
-
-...fuck.
--}
-
--- TODO: legends for sizes
-
-{-
-renderAxis : FloatMap -> (Float, Float) -> Geom.Dims -> Diagram t a
-renderAxis floatMap worldSpaceInterval dims =
-  let
-    numTicks =
-      10
-
-    tickIndices =
-      [1..numTicks]
-
-    tickPositions =
-      tickIndices
-      |> List.map floatMap
-
-    tickHeight =
-      5 -- TODO configurable
-
-    tickMark =
-      Diagrams.vline 5 Collage.defaultLine -- TODO configurable
-
-    tickToWorld =
-      floatMap (0, numTicks) { width = numTicks, height = numTicks }
-
-    tickLabel idx =
-      tickToWorld idx
-      |> truncate -- TODO something other than this
-      |> toString
-      |> Diagrams.text Text.defaultStyle -- TODO configurable
-
-    makeTick idx pos =
-      tickMark `above` (tickLabel idx)
-      |> Diagrams.moveX pos
-
-    ticks =
-      List.map2 makeTick tickIndices tickPositions
-      |> Diagrams.group
-      |> Align.alignCenter
-    
-    line =
-      Diagrams.hline viewSpaceLength Collage.defaultLine
-  in
-    line `above` ticks
--}
 
 -- utils
 
