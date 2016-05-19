@@ -9,6 +9,35 @@ Currently as far as rendering this scatterplot of the Iris example dataset:
 
 ![image](test.png)
 
-Axis rendering needs a lot of work. Also more marks, etc. Interactivity & selections haven't been started yet.
+Using this specification (In `Test.elm`):
+
+```
+Point
+    { x =
+        { scale = QuantitativeFV { extract = .sepalWidth, map = linear Width }
+        , source = FromData
+        }
+    , y =
+        { scale = QuantitativeFV { extract = .petalWidth, map = linear Height }
+        , source = FromData
+        }
+    , radius =
+        { scale =
+            QuantitativeFV
+              { extract = .petalLength
+              , map = linear (ExplicitRange (1, 10))
+              }
+        , source = FromData
+        }
+    , color =
+        ColorPalette
+          { extract = .species
+          , colors = [Color.blue, Color.orange, Color.green]
+          }
+    }
+```
+
+
+Everything is still in flux... Axis rendering needs a lot of work. Also more marks, etc. Interactivity & selections haven't been started yet.
 
 Currently builds on top of [vilterp/elm-diagrams](https://github.com/vilterp/elm-diagrams), which renders to `Collage` from [evancz/elm-graphics](https://github.com/evancz/elm-graphics), which renders to `<canvas>`.
