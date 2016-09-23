@@ -4,16 +4,17 @@
     "repository": "https://github.com/vilterp/elm-vega.git",
     "license": "BSD3",
     "source-directories": [
-        "."
+        ".",
+        "elm-diagrams"
     ],
-    "exposed-modules": [
-    ],
+    "exposed-modules": [],
     "dependencies": {
+        "elm-community/list-extra": "3.1.0 <= v < 4.0.0",
         "elm-lang/core": "4.0.0 <= v < 5.0.0",
         "elm-lang/html": "1.0.0 <= v < 2.0.0",
+        "elm-lang/svg": "1.1.1 <= v < 2.0.0",
         "elm-lang/window": "1.0.0 <= v < 2.0.0",
-        "evancz/elm-graphics": "1.0.0 <= v < 2.0.0",
-        "vilterp/elm-diagrams": "7.0.0 <= v < 8.0.0"
+        "evancz/elm-graphics": "1.0.0 <= v < 2.0.0"
     },
     "elm-version": "0.17.0 <= v < 0.18.0"
 }

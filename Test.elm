@@ -11,6 +11,7 @@ import Diagrams.Core as Diagrams
 import Diagrams.Geom as Geom
 import Diagrams.Type exposing (..)
 import Diagrams.Debug
+import Diagrams.FullWindow exposing (..)
 
 import Vega exposing (..)
 import Vega.Types exposing (..)
@@ -61,11 +62,6 @@ rects =
       }
 
 
-diagram =
-  --render rects dims (Iris.avgSpeciesAttr .sepalWidth)
-  render points dims Iris.table
-
-
 dims =
   { width = 500
   , height = 500
@@ -73,11 +69,5 @@ dims =
 
 
 main =
-  App.beginnerProgram
-    { model = ()
-    , view =
-        diagram
-        |> Diagrams.toHtml { dims | width = dims.width + 100, height = dims.height + 100 }
-        |> always
-    , update = \_ _ -> ()
-    }
+  render points dims Iris.table
+  |> fullWindowShow
