@@ -11,7 +11,7 @@ Currently as far as rendering this scatterplot of the Iris example dataset:
 
 Using this specification (In `Test.elm`):
 
-```
+```elm
 Point
     { x =
         { scale = QuantitativeFV { extract = .sepalWidth, map = linear Width }
