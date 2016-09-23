@@ -41,3 +41,12 @@ Point
 Everything is still in flux... Axis rendering needs a lot of work. Also more marks, etc. Interactivity & selections haven't been started yet.
 
 Currently builds on top of [vilterp/elm-diagrams](https://github.com/vilterp/elm-diagrams), which renders to `Collage` from [evancz/elm-graphics](https://github.com/evancz/elm-graphics), which renders to `<canvas>`.
+
+## Running it
+
+```
+git submodule update --init elm-diagrams
+elm-reactor
+```
+
+Go to the browser and click on `Test.elm`
